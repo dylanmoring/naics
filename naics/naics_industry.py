@@ -2,11 +2,12 @@ from naics.base_codes import NAICSIndustryCode
 
 
 class NAICSIndustry(NAICSIndustryCode):
-    def __init__(self, code, title, description=None, index_items=None):
+    def __init__(self, code, title, description=None, index_items=None, cross_references=None):
         super().__init__(code)
         self.title = title
         self.description = description
         self.index_items = index_items
+        self.cross_references = cross_references
 
     def __repr__(self):
         return f'{type(self).__name__} {self.code} - {self.title}'
@@ -27,7 +28,9 @@ class NAICSIndustry(NAICSIndustryCode):
     def child_codes(self):
         if not hasattr(self, '_child_codes'):
             self._child_codes = [
-                code for code in self.naics_objects.values() if str(code.code).startswith(str(self.code))
+                code for code in self.naics_objects.values()
+                if str(code.code).startswith(str(self.code)) and
+                code is not self
             ]
         return self._child_codes
 
@@ -48,7 +51,8 @@ class NAICSIndustry(NAICSIndustryCode):
     def parent_codes(self):
         if not hasattr(self, '_parent_codes'):
             self._parent_codes = [
-                code for code in self.naics_objects.values() if str(self.code).startswith(str(code.code))
+                code for code in self.naics_objects.values()
+                if str(self.code).startswith(str(code.code)) and code is not self
             ]
         return self._parent_codes
 

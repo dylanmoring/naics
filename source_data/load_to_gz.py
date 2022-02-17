@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+import gzip
 from pathlib import Path
 
 
@@ -39,8 +40,9 @@ class JSONLoader:
         column_name = f'NAICS{str(self.year)[-2:]}'
         index = pd.read_excel(self.index_file)
         index = index[~index[column_name].isna()]
-        index[column_name] = index[column_name].astype(str)
-        index = index[index[column_name].str.contains(r'\d')]
+        code_index = index[column_name].astype(str)
+        index = index[code_index.str.contains(r'\d')]
+        index[column_name] = index[column_name].astype('int64')
         index = index.set_index(column_name)
         index_items = {}
         for naics, group in index.groupby(lambda x: x):
@@ -49,7 +51,25 @@ class JSONLoader:
 
     def make_cross_reference_dict(self) -> dict:
         print('making cross reference')
-        return {}
+        cr = pd.read_excel(self.cross_reference_file).rename(columns={
+            'Code': 'code',
+            'Cross-Reference': 'cross_reference'
+        }).set_index('code')
+        # First check for a match 3-6 digits long
+        crcs_3d = cr.cross_reference.str.extract(r'(\d{3,6})')
+        # Then check for 2 digits
+        crcs_2d = cr.cross_reference.str.extract(r'(\d{2,6})')
+        # Only use 2 digits if there was no 3 digit match
+        cr['cross_reference_code'] = crcs_3d.combine_first(crcs_2d)
+        cr_items = {}
+        for naics, group in cr.groupby(lambda x: x):
+            group = group.apply(lambda x: {x.cross_reference_code: x.cross_reference},
+                                axis=1).to_list()
+            references = {}
+            for row in group:
+                references.update(row)
+            cr_items[naics] = {'cross_references': references}
+        return cr_items
 
     def make_data_dict(self) -> dict:
         data_dict = {}
@@ -64,14 +84,15 @@ class JSONLoader:
         return data_dict
 
     def __call__(self):
-        with open(self.output_path, 'w') as f:
+        with gzip.open(self.output_path, 'wt') as f:
             json.dump(self.make_data_dict(), f)
 
 
-from naics import years
 naics2017 = Path('NAICS 2017')
+naics_2017_json_path = Path('../naics/years/y2017/naics_2017.json.gz')
+
 naics2017_loader = JSONLoader(
-    output_path=years.y2017.objects.naics_json_path,
+    output_path=naics_2017_json_path,
     year=2017,
     codes_file=naics2017 / '2-6 digit_2017_Codes.xlsx',
     description_file=naics2017 / '2017_NAICS_Descriptions.xlsx',
@@ -82,8 +103,9 @@ naics2017_loader = JSONLoader(
 naics2017_loader()
 
 naics2022 = Path('NAICS 2022')
+naics_2022_json_path = Path('../naics/years/y2022/naics_2022.json.gz')
 naics2022_loader = JSONLoader(
-    output_path=years.y2022.objects.naics_json_path,
+    output_path=naics_2022_json_path,
     year=2022,
     codes_file=naics2022 / '2-6 digit_2022_Codes.xlsx',
     description_file=naics2022 / '2022_NAICS_Descriptions.xlsx',
