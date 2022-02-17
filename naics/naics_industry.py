@@ -49,23 +49,31 @@ class NAICSIndustry(NAICSIndustryCode):
 
     @property
     def cross_reference_codes(self):
-        if not hasattr(self, 'cross_reference_codes'):
+        if not hasattr(self, '_cross_reference_codes'):
             cross_reference_codes = {}
             # Get own cross references
             if self.cross_references:
-                cross_reference_codes.update(self.cross_references)
+                for cr_code, desc in self.cross_references.items():
+                    if cr_code in cross_reference_codes:
+                        cross_reference_codes[cr_code].update({self: desc})
+                    else:
+                        cross_reference_codes[cr_code] = {self: desc}
             # Get all child cross-references
             for child_code in self.child_codes:
                 if child_code.cross_references:
-                    cross_reference_codes.update(child_code.cross_references)
+                    for cr_code, desc in child_code.cross_references.items():
+                        if cr_code in cross_reference_codes:
+                            cross_reference_codes[cr_code].update({child_code: desc})
+                        else:
+                            cross_reference_codes[cr_code] = {child_code: desc}
             # Get code objects
-            self._cross_references = {}
+            self._cross_reference_codes = {}
             for reference_naics, reference_note in cross_reference_codes.items():
                 cr_code = self.naics_objects[int(reference_naics)]
                 # Filter redundant children
                 if cr_code not in self.child_codes:
-                    self._cross_references[cr_code] = reference_note
-        return self._cross_references
+                    self._cross_reference_codes[cr_code] = reference_note
+        return self._cross_reference_codes
 
     @property
     def all_potential_subcodes(self):
