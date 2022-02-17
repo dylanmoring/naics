@@ -48,6 +48,34 @@ class NAICSIndustry(NAICSIndustryCode):
         return self._included_activities
 
     @property
+    def cross_reference_codes(self):
+        if not hasattr(self, 'cross_reference_codes'):
+            cross_reference_codes = {}
+            # Get own cross references
+            if self.cross_references:
+                cross_reference_codes.update(self.cross_references)
+            # Get all child cross-references
+            for child_code in self.child_codes:
+                if child_code.cross_references:
+                    cross_reference_codes.update(child_code.cross_references)
+            # Get code objects
+            self._cross_references = {}
+            for reference_naics, reference_note in cross_reference_codes.items():
+                cr_code = self.naics_objects[int(reference_naics)]
+                # Filter redundant children
+                if cr_code not in self.child_codes:
+                    self._cross_references[cr_code] = reference_note
+        return self._cross_references
+
+    @property
+    def all_potential_subcodes(self):
+        all_potential_subcodes = set(self.child_codes)
+        # Remove cross references at same or higher level.
+        cross_references = {cr for cr in self.cross_reference_codes.keys() if cr.level < self.level}
+        all_potential_subcodes.update(cross_references)
+        return sorted(list(all_potential_subcodes))
+
+    @property
     def parent_codes(self):
         if not hasattr(self, '_parent_codes'):
             self._parent_codes = [
